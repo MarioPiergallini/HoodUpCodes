@@ -3,6 +3,7 @@ from collections import defaultdict as dd
 from happyfuntokenizing import Tokenizer
 
 class DataSampler():
+  
   def __init__(self, dataFile):
     self.__data = []
     self.__commWiseIndices = {}
