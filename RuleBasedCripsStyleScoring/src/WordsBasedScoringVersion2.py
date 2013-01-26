@@ -11,7 +11,7 @@ class CripsWords:
                         "kempkins", "klipkous", "klipkouses", "lempke", "limpkin", "limpkins", "lumpkin", "lumpkins", "mapkin", "mapkins",
                         "napkin", "napkins", "pipkin", "pipkins", "Nimpkish", "Nipkow", "pipkin", "pipkins", "pipkinet", "pipkinets",
                         "pipkrake", "pipkrakes", "rumpkin", "rumpkins", "shapka", "shapkas", "shopkeep", "shopkeeps", "shopkeeper",
-                        "shopkeepers", "shopkeeping", "topknot", "topknots", "upkeep", "upkeeping", "upkeeps"])
+                        "shopkeepers", "shopkeeping", "topknot", "topknots", "upkeep", "upkeeping", "upkeeps", "tompkin", "tompkins", "thompkin", "thompkins"])
     self.hkWords = set(["hk", "achkan", "ashkenazim", "ashkenazi", "babushka", "britchka", "droshky", "dutchkin", "hotchkiss", "kishke",
                         "lashkar", "matryoshka", "mitchkin", "munchkin", "mutchkin", "narrischkeit", "peshkash", "puschkinia", "rathke",
                         "rubashka", "sharashka", "suchkin", "tchotchke", "yiddishkeit"])
@@ -48,12 +48,9 @@ class CripsWords:
       if word.find("kc") >= 0 and word not in self.kcWords:
           ccScope += 1
           ccHits += 1
-      if word.find("ck") >= 0 and word != "ck" and word != "nicka":
+      if word.find("ck") >= 0 and word != "ck" and word != "nicka" and word != "nucka":
         ccScope += 1
-    if ccScope == 0:
-      return -1, -1
-    else:
-      return ccHits, ccScope 
+    return ccHits, ccScope 
   
   def pkScore(self, post):
     pkHits = 0
@@ -64,10 +61,7 @@ class CripsWords:
         pkScope += 1
       elif word.find("p") >= 0:
         pkScope += 1
-    if pkScope == 0:
-      return -1, -1
-    else:
-      return pkHits, pkScope
+    return pkHits, pkScope
   
   def bkScore(self, post):
     bkHits = 0
@@ -78,10 +72,7 @@ class CripsWords:
         bkScope += 1
       elif word.find("b") >= 0:
         bkScope += 1
-    if bkScope == 0:
-      return -1, -1
-    else:
-      return bkHits, bkScope
+    return bkHits, bkScope
   
   def hkScore(self, post):
     hkHits = 0
@@ -92,14 +83,21 @@ class CripsWords:
         hkScope += 1
       elif word.find("h") >= 0:
         hkScope += 1
-    if hkScope == 0:
-      return -1, -1
-    else:
-      return hkHits, hkScope
+    return hkHits, hkScope
+  
+  def removeSmileys(self, post):
+    newPost = []
+    for word in post:
+      if len(word) > 6 and word[:3] == '___' and word[-3:] == '___':
+        continue
+      else:
+        newPost.append(word)
+    return newPost
   
   def scorePost(self, post):
     postBody = copy.deepcopy(post)
     postBody = postBody.split()
+    postBody = self.removeSmileys(postBody)
     scores = []
     scores.extend(self.ccScore(postBody))
     scores.extend(self.bkScore(postBody))
@@ -112,22 +110,26 @@ class CripsWords:
     postsFile = open(postsFile)
     postsFile.readline()
     reader = csv.reader(postsFile, quotechar='"', escapechar="\\")
+    status = 0
     for post in reader:
       scores = map(lambda x:str(x), self.scorePost(post[4]))
-      post = post[:7] + post[9:10] + scores + post[12:]
+      post = post[:11] + scores + post[11:12]
       self.posts.append(post)
+      status += 1
+      if status % 10000 == 0:
+        print status
   
   def makeATable(self):
     conn = M.connect('localhost', 'phani', 'phani', 'hoodup')
     cursor = conn.cursor()
-    cursor.execute("""create table PostwiseRuleBasedCripsScores(userName VARCHAR(100), userId INT, userMonth INT, ActiveAndPostedForums VARCHAR(50),
-      postBody VARCHAR(10000), postId INT, threadId INT, LDAScore DOUBLE, cc DOUBLE, ccScope DOUBLE, bk DOUBLE, bkScope DOUBLE, hk DOUBLE, hkScope DOUBLE,
-      pk DOUBLE, pkScope DOUBLE, HoodupLink VARCHAR(100))""")
+    cursor.execute("""create table RuleBasedCripsScores(userName VARCHAR(100), userId INT, postId INT, threadId INT, postBody VARCHAR(10000), 
+    postForum VARCHAR(50), activeForum VARCHAR(50), userRegDay INT, days INT, hours INT, minutes INT, cc DOUBLE, ccScope DOUBLE, bk DOUBLE, 
+    bkScope DOUBLE, hk DOUBLE, hkScope DOUBLE, pk DOUBLE, pkScope DOUBLE, HoodupLink VARCHAR(100))""")
     status = 0
     for post in self.posts:
-      if len(post) != 17:
+      if len(post) != 20:
         continue
-      cursor.execute("""insert into PostwiseRuleBasedCripsScores values(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", tuple(post))
+      cursor.execute("""insert into RuleBasedCripsScores values(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)""", tuple(post))
       status += 1
       if status % 10000 == 0:
         print status
@@ -135,6 +137,6 @@ class CripsWords:
       
 if __name__ == '__main__':
   C = CripsWords()
-  ldaScoresFile = "/usr0/home/pgadde/Work/Ethnic/Hoodup/DataExploration/SampledPosts2/RuleBasedStyleScoring/postsWithLDAScores.csv"
+  ldaScoresFile = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/posts.csv"
   C.addScores(ldaScoresFile)
   C.makeATable()
