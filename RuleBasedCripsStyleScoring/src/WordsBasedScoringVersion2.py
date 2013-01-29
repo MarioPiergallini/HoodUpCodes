@@ -1,4 +1,4 @@
-import copy, csv
+import copy, csv, re
 import MySQLdb as M
 
 class CripsWords:
@@ -7,21 +7,26 @@ class CripsWords:
     self.loadLexiconForCC()
   
   def fillWords(self):
-    self.pkWords = set(["pk", "pumpkin", "pumpkins", "bumpkin", "bumpkins", "bupkis", "capkin", "capkins", "hapkido", "hopkins", "kempkin",
-                        "kempkins", "klipkous", "klipkouses", "lempke", "limpkin", "limpkins", "lumpkin", "lumpkins", "mapkin", "mapkins",
-                        "napkin", "napkins", "pipkin", "pipkins", "Nimpkish", "Nipkow", "pipkin", "pipkins", "pipkinet", "pipkinets",
-                        "pipkrake", "pipkrakes", "rumpkin", "rumpkins", "shapka", "shapkas", "shopkeep", "shopkeeps", "shopkeeper",
-                        "shopkeepers", "shopkeeping", "topknot", "topknots", "upkeep", "upkeeping", "upkeeps", "tompkin", "tompkins", "thompkin", "thompkins"])
+    self.pkWords = set(["pk", "pumpkin", "bumpkin", "bupkis", "capkin", "hapkido", "hopkins", "kempkin",
+                        "klipkous", "klipkouses", "lempke", "limpkin", "lumpkin", "mapkin",
+                        "napkin", "pipkin", "Nimpkish", "Nipkow", "pipkin", "pipkinet",
+                        "pipkrake", "rumpkin", "shapka", "shopkeep", "shopkeeper",
+                        "shopkeeping", "topknot", "upkeep", "upkeeping", "tompkin", "thompkin"])
+    self.addPlurals(self.pkWords)
+    self.addPluralz(self.pkWords)
     self.hkWords = set(["hk", "achkan", "ashkenazim", "ashkenazi", "babushka", "britchka", "droshky", "dutchkin", "hotchkiss", "kishke",
                         "lashkar", "matryoshka", "mitchkin", "munchkin", "mutchkin", "narrischkeit", "peshkash", "puschkinia", "rathke",
                         "rubashka", "sharashka", "suchkin", "tchotchke", "yiddishkeit"])
     self.addPlurals(self.hkWords)
+    self.addPluralz(self.hkWords)
     self.bkWords = set(["bk", "abkari", "abkhaz", "abkhazian", "babka", "cobkey", "knobkerrie", "lambkill", "lambkin", "lebkuchen", "libken",
                         "nabk", "sabkha", "subkind", "subkingdom", "thumbkin"])
     self.addPlurals(self.bkWords)
+    self.addPluralz(self.bkWords)
     self.kcWords = set(["kc", "backcast", "backcloth", "blackcock", "blackcurrant", "bookcase", "cockchafer", "dickcissel", "kekchi", "kinkcough",
                         "lockchester", "markcourt", "neckcloth", "packcloth", "sackcloth"])
     self.addPlurals(self.kcWords)
+    self.addPluralz(self.kcWords)
     
   def loadLexiconForCC(self):
     lexFile = "/usr0/home/pgadde/Work/Ethnic/Hoodup/DataExploration/SampledPosts2/RuleBasedStyleScoring/aquaintAZ"
@@ -30,25 +35,30 @@ class CripsWords:
       line = line.strip().lower()
       if line.find("cc") >= 0:
         self.ccWords.add(line)
-    self.ccWords.add("nicca")
-    self.ccWords.add("nucca")
+    #self.ccWords.add("nicca")
+    #self.ccWords.add("nucca")
     
   def addPlurals(self, words):
     words2 = copy.deepcopy(words)
     for word in words2:
       words.add(word + "s")
   
+  def addPluralz(self, words):
+    words2 = copy.deepcopy(words)
+    for word in words2:
+      words.add(word + "z")
+  
   def ccScore(self, post):
     ccHits = 0
     ccScope = 0
     for word in post:
-      if word.find("cc") >= 0 and word not in self.ccWords:
+      if word.find("cc") >= 0 and re.match("n[ui]cca+[sz]?", word) != None and word not in self.ccWords:
           ccScope += 1
           ccHits += 1
       if word.find("kc") >= 0 and word not in self.kcWords:
           ccScope += 1
           ccHits += 1
-      if word.find("ck") >= 0 and word != "ck" and word != "nicka" and word != "nucka":
+      if word.find("ck") >= 0 and word != "ck":
         ccScope += 1
     return ccHits, ccScope 
   
