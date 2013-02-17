@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from collections import defaultdict as dd
 import csv, random, re, copy, codecs
 
@@ -167,18 +168,26 @@ class SubsitutionCoder:
 
   def printPostingBehavior(self, logFile):
     logFile = open(logFile, 'w')
-    label = 'user\tweek\tnumPosts\tnumAccusations'
+    label = 'user\tuserType\tweek\tnumPosts\tnumAccusations'
     for feat in self.features:
       label += '\t' + feat + 'Count'
       label += '\t' + feat
+      label += '\t' + feat + 'Percent'
     logFile.write(label + '\n')
     for user in self.userWeekwisePosts.iterkeys():
       for week in self.userWeekwisePosts[user].iterkeys():
-        toPrint = [user, str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
+        userType = "Fake"
+        if user not in self.fakeUsers:
+          userType = "Random"
+        toPrint = [user, userType, str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
         hits, scopes = self.calculateFeatures(self.userWeekwisePosts[user])
         for feat in self.features:
           toPrint.append(str(hits[feat + 'Count']))
           toPrint.append(str(scopes[feat]))
+          try:
+              toPrint.append(str(round(hits[feat + 'Count']*100.0/scopes[feat],2)))    
+          except:
+              toPrint.append(str("-"))
         logFile.write('\t'.join(toPrint) + '\n')
     logFile.close()
   
@@ -189,7 +198,7 @@ class SubsitutionCoder:
       postHits, postScopes = self.scorePost(self.posts[post][4])
       for feat in postScopes.iterkeys():
         Scopes[feat] += postScopes[feat]
-        Hits[feat] += postHits[feat + 'Count']
+        Hits[feat+'Count'] += postHits[feat + 'Count']
     return Hits, Scopes
   
   def preProcess(self, word):
