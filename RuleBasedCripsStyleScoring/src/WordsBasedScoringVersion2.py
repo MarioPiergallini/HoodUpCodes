@@ -147,6 +147,6 @@ class CripsWords:
       
 if __name__ == '__main__':
   C = CripsWords()
-  ldaScoresFile = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/posts.csv"
+  ldaScoresFile = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/FromChive/posts.csv"
   C.addScores(ldaScoresFile)
   C.makeATable()
