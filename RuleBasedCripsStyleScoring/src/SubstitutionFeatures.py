@@ -1,6 +1,6 @@
 #!/usr/bin/python
 from collections import defaultdict as dd
-import csv, random, re, copy, codecs
+import csv, random, re, copy, codecs, math
 
 class SubsitutionCoder:
   def __init__(self):
@@ -28,6 +28,22 @@ class SubsitutionCoder:
     self.loadTwitterLexicon("")
     self.addPlurals(self.twitterLexicon)
     self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood'])
+    self.activeForums = {}
+  
+  def createActiveForums(self):
+    userPostedForums = dd(lambda:dd(int))
+    for post in self.posts:
+      user = post[1]
+      forum = post[6].split()[0]
+      userPostedForums[user][forum] += 1
+    for user in userPostedForums.iterkeys():
+      actForum = ""
+      maxPosts = 0
+      for forum, numPosts  in userPostedForums[user].iteritems():
+        if numPosts > maxPosts:
+          maxPosts = numPosts
+          actForum = forum
+      self.activeForums[user] = actForum
   
   def loadLexiconForCC(self):
     lexFile = "/usr0/home/pgadde/Work/Ethnic/Hoodup/DataExploration/SampledPosts2/RuleBasedStyleScoring/aquaintAZ"
@@ -72,6 +88,36 @@ class SubsitutionCoder:
       self.nonFakeUsers.add(user)
       count += 1
     return 0
+  
+  def betterSamplingNonFake(self):
+    numPosts = self.numPostsByFakeUsers()
+    #print numPosts
+    mean = self.mean(numPosts)
+    #print "Mean:", mean
+    stdDev = self.stdDev(numPosts)
+    #print "stdDev:", stdDev
+    rangePostNums = mean - 0.5 * stdDev, mean + 0.5 * stdDev
+    #print "Min,Max range:", rangePostNums
+    possibleUsers = filter(lambda x:x not in self.fakeUsers and len(self.userwisePosts[x]) > rangePostNums[0] and len(self.userwisePosts[x]) < rangePostNums[1], self.userwisePosts.keys())
+    self.nonFakeUsers = set(random.sample(possibleUsers, 100))
+    #print "nonFakes:", self.nonFakeUsers
+  
+  def stdDev(self, numbers):
+    mean = sum(numbers) * 1.0 / len(numbers)
+    var = 0
+    for num in numbers:
+      var += (num - mean) ** 2
+    var = var * 1.0 / len(numbers)
+    return math.sqrt(var)
+  
+  def mean(self, numbers):
+    return sum(numbers) * 1.0 / len(numbers)
+  
+  def numPostsByFakeUsers(self):
+    numPosts = []
+    for user in self.fakeUsers:
+      numPosts.append(len(self.userwisePosts[user]))
+    return numPosts
     
   def loadData(self, dataFile):
     dataFile = codecs.open(dataFile, encoding='utf8')
@@ -168,38 +214,54 @@ class SubsitutionCoder:
 
   def printPostingBehavior(self, logFile):
     logFile = open(logFile, 'w')
-    label = 'user\tuserType\tweek\tnumPosts\tnumAccusations'
+    label = 'user\tuserType\tActiveForum\tweek\tnumPosts\tnumAccusations'
     for feat in self.features:
       label += '\t' + feat + 'Count'
       label += '\t' + feat
       label += '\t' + feat + 'Percent'
+      label += '\t' + feat + 'RawPercent'
+    label += '\tSubstitutionScore\tSubstitutionComplexity'
     logFile.write(label + '\n')
     for user in self.userWeekwisePosts.iterkeys():
       for week in self.userWeekwisePosts[user].iterkeys():
         userType = "Fake"
         if user not in self.fakeUsers:
           userType = "Random"
-        toPrint = [user, userType, str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
-        hits, scopes = self.calculateFeatures(self.userWeekwisePosts[user])
+        toPrint = [user, userType, self.activeForums[user],str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
+        hits, scopes, numWordScopes, simpleGlobal, complexityGlobal = self.calculateFeatures(self.userWeekwisePosts[user][week])
         for feat in self.features:
           toPrint.append(str(hits[feat + 'Count']))
           toPrint.append(str(scopes[feat]))
           try:
-              toPrint.append(str(round(hits[feat + 'Count']*100.0/scopes[feat],2)))    
+              toPrint.append(str(round(hits[feat + 'Count'] * 100.0 / scopes[feat], 2)))    
           except:
-              toPrint.append(str("-"))
+              toPrint.append(str(""))
+          try:
+              toPrint.append(str(round(hits[feat + 'Count'] * 100.0 / numWordScopes[feat], 4)))  
+          except:
+              toPrint.append(str(""))
+    
+        toPrint.append(simpleGlobal)
+        toPrint.append(complexityGlobal)
         logFile.write('\t'.join(toPrint) + '\n')
     logFile.close()
   
   def calculateFeatures(self, posts):
     Hits = dd(int)
     Scopes = dd(int)
+    numWordsScope = dd(int)
     for post in posts:
-      postHits, postScopes = self.scorePost(self.posts[post][4])
+      numWords = len(self.posts[post][4].split())
+      postHits, postScopes = self.scorePostWordIndexing(self.posts[post][4])
+      simpleGlobal = self.globalScoreSimple(postHits, postScopes)
+      complexityGloabal = self.globalScoreComplexity(postHits, postScopes)
+      #postHits = dict(map(lambda x:(x[0], len(x[1])), postHits.items()))
+      #postScopes = dict(map(lambda x:(x[0], len(x[1])), postScopes.items()))
       for feat in postScopes.iterkeys():
-        Scopes[feat] += postScopes[feat]
-        Hits[feat+'Count'] += postHits[feat + 'Count']
-    return Hits, Scopes
+        Scopes[feat] += len(postScopes[feat])
+        Hits[feat + 'Count'] += len(postHits[feat + 'Count'])
+        numWordsScope[feat] += numWords
+    return Hits, Scopes, numWordsScope, simpleGlobal, complexityGloabal
   
   def preProcess(self, word):
     word = word.replace("$", "s")
@@ -232,40 +294,40 @@ class SubsitutionCoder:
       return True
     return False
   
-  def updateScope(self, word, scopeDict):
+  def updateScope(self, word, scopeDict, wordIndex):
     if word.find("b") >= 0:
-      scopeDict['bk'] += 1
+      scopeDict['bk'].add(wordIndex)
     if word.find("p") >= 0:
-      scopeDict['pk'] += 1
+      scopeDict['pk'].add(wordIndex)
     if word.find("h") >= 0:
-      scopeDict['hk'] += 1
+      scopeDict['hk'].add(wordIndex)
     if word.find("e") >= 0:
-      scopeDict['3'] += 1
+      scopeDict['3'].add(wordIndex)
     if word.find("b") >= 0:
-      scopeDict['6'] += 1
+      scopeDict['6'].add(wordIndex)
     if word.find("s") >= 0:
-      scopeDict['5'] += 1
+      scopeDict['5'].add(wordIndex)
     if word.find("b") >= 0:
-      scopeDict['8'] += 1
+      scopeDict['8'].add(wordIndex)
     if word.find("o") >= 0:
-      scopeDict['x'] += 1
-      scopeDict['oe'] += 1
+      scopeDict['x'].add(wordIndex)
+      scopeDict['oe'].add(wordIndex)
   
-  def updateCCScope(self, word, scopeDict):
+  def updateCCScope(self, word, scopeDict, wordIndex):
     if word.find("ck") >= 0 and word in self.twitterLexicon:
-      scopeDict['cc'] += 1
+      scopeDict['cc'].add(wordIndex)
   
-  def updateCKScope(self, word, scopeDict):
+  def updateCKScope(self, word, scopeDict, wordIndex):
     if word.find("cck") < 0 and ((word.find("ck") >= 0 and word not in self.twitterLexicon) or (word.find("c") >= 0 and word.find("ck") < 0 and word in self.twitterLexicon)):
-      scopeDict['ck'] += 1
+      scopeDict['ck'].add(wordIndex)
   
-  def xSub(self, word, counts, scopeDict):
+  def xSub(self, word, counts, scopeDict, wordIndex):
     xIndices = []
     listWord = []
     xFlag = 0
     if word.find('xx') >= 0:
       word = word.replace('xx', 'oo')
-      counts['xCount'] += 1
+      counts['xCount'].add(wordIndex)
       xFlag = 1
     for index in range(len(word)):
       char = word[index]
@@ -281,43 +343,131 @@ class SubsitutionCoder:
         listWord[xIndex] = 'o'
         xFlag = 1
     if xFlag:
-      counts['xCount'] += 1
-      scopeDict['x'] += 1
+      counts['xCount'].add(wordIndex)
+      scopeDict['x'].add(wordIndex)
     word = ''.join(listWord)
     
     return word
   
-  def hoodDoubleSub(self, word, counts):
+  def hoodDoubleSub(self, word, counts, wordIndex):
     prevWord = word
     word = re.sub(r'gr[0-9][0-9]v([a-z]+)', r'groov\1', word)
     word = re.sub(r'h[0-9][0-9]d([sz]+?)', r'hood\1', word)
     word = re.sub(r'h[0-9][0-9]v([a-z]+)', r'hoov\1', word)
     word = re.sub(r'bl[0-9][0-9]d([sz]+?)', r'blood\1', word)
     if prevWord != word:
-      counts['hoodCount'] += 1
+      counts['hoodCount'].add(wordIndex)
     return word
   
-  def nwordDoubleSub(self, word, counts):
+  def nwordDoubleSub(self, word, counts, wordIndex):
     prevWord = word
     word = re.sub(r'ni[0-9][0-9]a([sz]?)', r'nigga\1', word)
     if prevWord != word:
-      counts['nwordCount'] += 1
+      counts['nwordCount'].add(wordIndex)
     return word
   
-  def updateHoodScope(self, word, scopeDict):
+  def updateHoodScope(self, word, scopeDict, wordIndex):
     if re.match(r'hood([sz]+)?', word) != None:
-      scopeDict['hood'] += 1
+      scopeDict['hood'].add(wordIndex)
     elif re.match(r'hoov[a-z]+', word) != None:
-      scopeDict['hood'] += 1
+      scopeDict['hood'].add(wordIndex)
     elif re.match(r'blood([sz]+)?', word) != None:
-      scopeDict['hood'] += 1
+      scopeDict['hood'].add(wordIndex)
     elif re.match(r'groov[a-z]+', word) != None:
-      scopeDict['hood'] += 1
+      scopeDict['hood'].add(wordIndex)
   
-  def updateNwordScope(self, word, scopeDict):
+  def updateNwordScope(self, word, scopeDict, wordIndex):
     if re.match(r'nigga([sz]?)', word):
-      scopeDict['nword'] += 1
-  
+      scopeDict['nword'].add(wordIndex)
+
+  def scorePostWordIndexing(self, post):
+    caretCount = 0
+    counts = dd(set)
+    scopeDict = dd(set)
+    #counts = {'ccCount':0, 'ckCount':0, 'pkCount':0, 'hkCount':0, 'bkCount':0, 'oeCount':0, 'xCount':0, '5Count':0, '3Count':0, '6Count':0, '8Count':0, 'nwordCount':0, 'hoodCount':0}
+    #scopeDict = {"cc":0, "ck":0, "bk":0, "pk":0, "hk":0, "oe":0, "3":0, "5":0, "6":0, "8":0, "x":0, 'nword':0, 'hood':0}
+    for index in range(len(post.split())):
+      word = post.split()[index]
+      self.updateScope(word, scopeDict, index) ## Updating the scope before skipping the words
+      self.updateCCScope(word, scopeDict, index)
+      if word in self.twitterLexicon or self.notInterested(word):
+        self.updateCKScope(word, scopeDict, index)
+        #print "filtered:", word
+        continue
+      #print "un-filtered:", word
+      word = self.preProcess(word)
+      # ^
+      if word.find("^") >= 0:
+        word = word.replace("^", "")
+        caretCount += 1
+      # bk, pk, hk
+      if word.find("bk") >= 0:
+        word = word.replace("bk", "b")
+        counts['bkCount'].add(index)
+      if word.find("hk") >= 0:
+        word = word.replace("hk", "h")
+        counts['hkCount'].add(index)
+      if word.find("pk") >= 0 and word not in self.pkWords:
+        word = word.replace("pk", "p")
+        counts['pkCount'].add(index)
+      # oe
+      if word.find(u'\xf8') >= 0:
+        word = word.replace(u'\xf8', 'o')
+        counts['oeCount'].add(index)
+        scopeDict['oe'].add(index)
+      ## Double Digits!
+      word = self.hoodDoubleSub(word, counts, index)
+      word = self.nwordDoubleSub(word, counts, index)
+      ## Single Digits
+      if word.find("5") >= 0:
+        word = word.replace('5', 's')
+        scopeDict['5'].add(index)
+        counts['5Count'].add(index)
+      if word.find("3") >= 0:
+        word = word.replace('3', 'e')
+        counts['3Count'].add(index)
+        scopeDict['3'].add(index)
+      if word.find("6") >= 0:
+        word = word.replace('6', 'b') # g or b?
+        counts['6Count'].add(index)
+        scopeDict['6'].add(index)
+      if word.find("8") >= 0:
+        word = word.replace('8', 'b')
+        scopeDict['8'].add(index)
+        counts['8Count'].add(index)
+      # x!
+      if word.find('x') >= 0:
+        word = self.xSub(word, counts, scopeDict, index)
+      #print "word after subsitutions:", word
+      # Updating cc scope again!
+      self.updateCCScope(word, scopeDict, index)
+      self.updateCKScope(word, scopeDict, index)
+      self.updateHoodScope(word, scopeDict, index)
+      self.updateNwordScope(word, scopeDict, index)
+      # cc, ck and kc
+      if word.find("ckk") >= 0:
+        scopeDict['cc'].add(index)
+      if word.find("cck") >= 0:
+        scopeDict['cc'].add(index)
+        pass
+      elif word.find("cc") >= 0 and re.match("n[ui]cca+[sz]?", word) == None and word not in self.ccWords:
+        counts['ccCount'].add(index)
+        scopeDict['cc'].add(index)
+      elif word.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", word) == None and word not in self.ckWords:
+        counts['ckCount'].add(index)
+      if word.find("kc") >= 0 and word not in self.kcWords:
+        counts['ccCount'].add(index)
+        scopeDict['cc'].add(index)
+    
+    #print scopeDict
+    #print counts
+    #print post
+    #print dict(map(lambda x:(x[0], len(x[1])), counts.items())), dict(map(lambda x:(x[0], len(x[1])), scopeDict.items()))
+    #print counts, scopeDict
+    #print "Complexity Global Feat:", self.globalScoreComplexity(counts, scopeDict)
+    #print "Simple Global Feat:", self.globalScoreSimple(counts, scopeDict)
+    return counts, scopeDict
+
   def scorePost(self, post):
     caretCount = 0
     counts = {'ccCount':0, 'ckCount':0, 'pkCount':0, 'hkCount':0, 'bkCount':0, 'oeCount':0, 'xCount':0, '5Count':0, '3Count':0, '6Count':0, '8Count':0, 'nwordCount':0, 'hoodCount':0}
@@ -399,16 +549,41 @@ class SubsitutionCoder:
     #print post
     return counts, scopeDict
 
+  def globalScoreComplexity(self, counts, scopeDict):
+    scopeIndices = set()
+    for feat in scopeDict.iterkeys():
+      for index in scopeDict[feat]:
+        scopeIndices.add(index)
+    count = 0
+    for feat in counts.iterkeys():
+      count += len(counts[feat])
+    if len(scopeIndices) > 0:
+      return str(round(count * 100.0 / len(scopeIndices), 2))
+    return ""
+  
+  def globalScoreSimple(self, counts, scopeDict):
+    scope = 0
+    for feat in scopeDict.iterkeys():
+      scope += len(scopeDict[feat])
+    count = 0
+    for feat in counts.iterkeys():
+      count += len(counts[feat])
+    if scope > 0:
+      return str(round(count * 100.0 / scope, 2))
+    return ""
+    
 if __name__ == '__main__':
   data = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/FromChive/posts.csv"
   fakeAnnotation = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/Users_Pointed_Out_As_Fake.csv"
   accuTimeline = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/accusationsFeatsTimeline.tsv"
   F = SubsitutionCoder()
   F.loadData(data)
+  F.createActiveForums()
   F.makeWeekwise()
   F.loadFakeAnnotation(fakeAnnotation, set([]))
   F.buildPostIdMap()
-  F.sampleNonFakeUsers()
+  #F.sampleNonFakeUsers()
+  F.betterSamplingNonFake()
   F.filterUsers()
   F.makeAccusationsWeekwise()
   F.sanityCheck()
@@ -416,6 +591,6 @@ if __name__ == '__main__':
   #while 1:
   #  post = raw_input("Text:")
   #  if post != "exit":
-  #    F.scorePost(post)
+  #    F.scorePostWordIndexing(post)
   #  else:
   #    break
