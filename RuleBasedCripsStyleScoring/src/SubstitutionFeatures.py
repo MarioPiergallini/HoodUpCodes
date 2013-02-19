@@ -27,7 +27,7 @@ class SubsitutionCoder:
     self.loadLexiconForCK()
     self.loadTwitterLexicon("")
     self.addPlurals(self.twitterLexicon)
-    self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood'])
+    self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood', 'bCaret', 'cCaret', 'pCaret', 'hCaret'])
     self.activeForums = {}
   
   def createActiveForums(self):
@@ -227,7 +227,7 @@ class SubsitutionCoder:
         userType = "Fake"
         if user not in self.fakeUsers:
           userType = "Random"
-        toPrint = [user, userType, self.activeForums[user],str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
+        toPrint = [user, userType, self.activeForums[user], str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
         hits, scopes, numWordScopes, simpleGlobal, complexityGlobal = self.calculateFeatures(self.userWeekwisePosts[user][week])
         for feat in self.features:
           toPrint.append(str(hits[feat + 'Count']))
@@ -295,12 +295,17 @@ class SubsitutionCoder:
     return False
   
   def updateScope(self, word, scopeDict, wordIndex):
+    if word.find("c") >= 0:
+      scopeDict['cCaret'].add(wordIndex)
     if word.find("b") >= 0:
       scopeDict['bk'].add(wordIndex)
+      scopeDict['bCaret'].add(wordIndex)
     if word.find("p") >= 0:
       scopeDict['pk'].add(wordIndex)
+      scopeDict['pCaret'].add(wordIndex)
     if word.find("h") >= 0:
       scopeDict['hk'].add(wordIndex)
+      scopeDict['hCaret'].add(wordIndex)
     if word.find("e") >= 0:
       scopeDict['3'].add(wordIndex)
     if word.find("b") >= 0:
@@ -380,12 +385,21 @@ class SubsitutionCoder:
     if re.match(r'nigga([sz]?)', word):
       scopeDict['nword'].add(wordIndex)
 
+  def updateCaretFeats(self, word, counts, scopeDict, wordIndex):
+    if word.find("b^") >= 0:
+      counts['bCaretCount'].add(wordIndex)
+    if word.find("c^") >= 0:
+      counts['cCaretCount'].add(wordIndex)
+    if word.find("h^") >= 0:
+      counts['hCaretCount'].add(wordIndex)
+    if word.find("p^") >= 0:
+      counts['pCaretCount'].add(wordIndex)
+    word = word.replace("^", "")
+    return word
+  
   def scorePostWordIndexing(self, post):
-    caretCount = 0
     counts = dd(set)
     scopeDict = dd(set)
-    #counts = {'ccCount':0, 'ckCount':0, 'pkCount':0, 'hkCount':0, 'bkCount':0, 'oeCount':0, 'xCount':0, '5Count':0, '3Count':0, '6Count':0, '8Count':0, 'nwordCount':0, 'hoodCount':0}
-    #scopeDict = {"cc":0, "ck":0, "bk":0, "pk":0, "hk":0, "oe":0, "3":0, "5":0, "6":0, "8":0, "x":0, 'nword':0, 'hood':0}
     for index in range(len(post.split())):
       word = post.split()[index]
       self.updateScope(word, scopeDict, index) ## Updating the scope before skipping the words
@@ -398,8 +412,10 @@ class SubsitutionCoder:
       word = self.preProcess(word)
       # ^
       if word.find("^") >= 0:
-        word = word.replace("^", "")
-        caretCount += 1
+        word = self.updateCaretFeats(word, counts, scopeDict, index)
+      ## replacing cck with ck
+      word = word.replace("cck", "ck")
+      word = word.replace("ckk", "ck")
       # bk, pk, hk
       if word.find("bk") >= 0:
         word = word.replace("bk", "b")
