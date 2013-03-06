@@ -52,25 +52,30 @@ class ReasonAnnotationHelper:
       postIndex += 1
   
   def helpAnnotate(self, annotationFile):
-    annotationFile = open(annotationFile,'w',1)
+    annotationFile = open(annotationFile, 'w', 1)
     for user in self.fakeUsers.iterkeys():
-      print '---------'*5
-      print user, self.userNames[user]
-      print '---------'*5
+      #print '---------' * 5
+      #print user, self.userNames[user]
+      #print '---------' * 5
       for post in self.fakeUsers[user]:
-        print textwrap.fill(self.posts[self.postIdMap[post]][4],200)
-        print '---------'*5
-      annotation = ''
-      while annotation not in ["style","norm","other","no"]:
-        annotation = raw_input("Enter the annotation")
-      annotationFile.write(user+'\t'+annotation+'\n')
-      print "Annotation Stored"
+        print '---------' * 5
+        print user, post, self.userNames[user]
+        print '---------' * 5
+        print textwrap.fill(self.posts[self.postIdMap[post]][4], 200)
+        print '---------' * 5
+        annotation = ''
+        #while annotation not in ["style", "norm", "other", "no"]:
+        while annotation not in ["crip", "blood", "king", "hoover", "other", "none", "multi"]:
+          annotation = raw_input("Enter the annotation: ")
+        annotationFile.write(user + '\t' + post + '\t' + annotation + '\n')
+        print "Annotation Stored"
+      
     annotationFile.close()
       
 if __name__ == '__main__':
   data = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/FromChive/posts.csv"
   fakeAnnotation = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/Users_Pointed_Out_As_Fake.csv"
-  reasonAnnotation = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/reasonsForAccusation.tsv"
+  reasonAnnotation = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/gangAccusations.tsv"
   R = ReasonAnnotationHelper()
   R.loadData(data)
   R.buildPostIdMap()

@@ -29,6 +29,10 @@ class SubsitutionCoder:
     self.addPlurals(self.twitterLexicon)
     self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood', 'bCaret', 'cCaret', 'pCaret', 'hCaret'])
     self.activeForums = {}
+    
+    self.wordsNotConsideredLater = dd(int)
+    self.wordsConsidered = dd(lambda:dd(int))
+    self.consideredWordsCount = 0
   
   def createActiveForums(self):
     userPostedForums = dd(lambda:dd(int))
@@ -169,7 +173,8 @@ class SubsitutionCoder:
   def filterUsers(self):
     allUsers = self.userwisePosts.keys()
     for user in allUsers:
-      if user not in self.fakeUsers and user not in self.nonFakeUsers:
+      #if user not in self.fakeUsers and user not in self.nonFakeUsers:
+      if len(self.userWeekwisePosts[user]) < 5:
         del self.userwisePosts[user]
         del self.userWeekwisePosts[user]
   
@@ -214,7 +219,8 @@ class SubsitutionCoder:
 
   def printPostingBehavior(self, logFile):
     logFile = open(logFile, 'w')
-    label = 'user\tuserType\tActiveForum\tweek\tnumPosts\tnumAccusations'
+    #label = 'user\tuserType\tActiveForum\tweek\tnumPosts\tnumAccusations'
+    label = 'user\tActiveForum\tweek\tnumPosts\tnumAccusations'
     for feat in self.features:
       label += '\t' + feat + 'Count'
       label += '\t' + feat
@@ -224,10 +230,11 @@ class SubsitutionCoder:
     logFile.write(label + '\n')
     for user in self.userWeekwisePosts.iterkeys():
       for week in self.userWeekwisePosts[user].iterkeys():
-        userType = "Fake"
-        if user not in self.fakeUsers:
-          userType = "Random"
-        toPrint = [user, userType, self.activeForums[user], str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
+        ##userType = "Fake"
+        ##if user not in self.fakeUsers:
+        ##  userType = "Random"
+        #toPrint = [user, userType, self.activeForums[user], str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
+        toPrint = [user, self.activeForums[user], str(week), str(len(self.userWeekwisePosts[user][week])), str(len(self.userWeekwiseAccusations[user][week]))]
         hits, scopes, numWordScopes, simpleGlobal, complexityGlobal = self.calculateFeatures(self.userWeekwisePosts[user][week])
         for feat in self.features:
           toPrint.append(str(hits[feat + 'Count']))
@@ -357,7 +364,7 @@ class SubsitutionCoder:
   def hoodDoubleSub(self, word, counts, wordIndex):
     prevWord = word
     word = re.sub(r'gr[0-9][0-9]v([a-z]+)', r'groov\1', word)
-    word = re.sub(r'h[0-9][0-9]d([sz]+?)', r'hood\1', word)
+    word = re.sub(r'h[0-9][0-9]d([sz]*)', r'hood\1', word)
     word = re.sub(r'h[0-9][0-9]v([a-z]+)', r'hoov\1', word)
     word = re.sub(r'bl[0-9][0-9]d([sz]+?)', r'blood\1', word)
     if prevWord != word:
@@ -402,17 +409,20 @@ class SubsitutionCoder:
     scopeDict = dd(set)
     for index in range(len(post.split())):
       word = post.split()[index]
+      actualWord = word
       self.updateScope(word, scopeDict, index) ## Updating the scope before skipping the words
       self.updateCCScope(word, scopeDict, index)
       if word in self.twitterLexicon or self.notInterested(word):
         self.updateCKScope(word, scopeDict, index)
         #print "filtered:", word
         continue
+      considered = 0
       #print "un-filtered:", word
       word = self.preProcess(word)
       # ^
       if word.find("^") >= 0:
         word = self.updateCaretFeats(word, counts, scopeDict, index)
+        considered = 1
       ## replacing cck with ck
       word = word.replace("cck", "ck")
       word = word.replace("ckk", "ck")
@@ -420,17 +430,25 @@ class SubsitutionCoder:
       if word.find("bk") >= 0:
         word = word.replace("bk", "b")
         counts['bkCount'].add(index)
+        considered = 1
+        self.wordsConsidered['bk'][actualWord] += 1
       if word.find("hk") >= 0:
         word = word.replace("hk", "h")
         counts['hkCount'].add(index)
+        considered = 1
+        self.wordsConsidered['hk'][actualWord] += 1
       if word.find("pk") >= 0 and word not in self.pkWords:
         word = word.replace("pk", "p")
         counts['pkCount'].add(index)
+        considered = 1
+        self.wordsConsidered['pk'][actualWord] += 1
       # oe
       if word.find(u'\xf8') >= 0:
         word = word.replace(u'\xf8', 'o')
         counts['oeCount'].add(index)
         scopeDict['oe'].add(index)
+        considered = 1
+        self.wordsConsidered['oe'][actualWord] += 1
       ## Double Digits!
       word = self.hoodDoubleSub(word, counts, index)
       word = self.nwordDoubleSub(word, counts, index)
@@ -439,21 +457,31 @@ class SubsitutionCoder:
         word = word.replace('5', 's')
         scopeDict['5'].add(index)
         counts['5Count'].add(index)
+        self.wordsConsidered['5s'][actualWord] += 1
+        considered = 1
       if word.find("3") >= 0:
         word = word.replace('3', 'e')
         counts['3Count'].add(index)
         scopeDict['3'].add(index)
+        considered = 1
+        self.wordsConsidered['3e'][actualWord] += 1
       if word.find("6") >= 0:
         word = word.replace('6', 'b') # g or b?
         counts['6Count'].add(index)
         scopeDict['6'].add(index)
+        considered = 1
+        self.wordsConsidered['6b'][actualWord] += 1
       if word.find("8") >= 0:
         word = word.replace('8', 'b')
         scopeDict['8'].add(index)
         counts['8Count'].add(index)
+        considered = 1
+        self.wordsConsidered['8b'][actualWord] += 1
       # x!
       if word.find('x') >= 0:
         word = self.xSub(word, counts, scopeDict, index)
+        self.wordsConsidered['x'][actualWord] += 1
+        considered = 1
       #print "word after subsitutions:", word
       # Updating cc scope again!
       self.updateCCScope(word, scopeDict, index)
@@ -469,11 +497,21 @@ class SubsitutionCoder:
       elif word.find("cc") >= 0 and re.match("n[ui]cca+[sz]?", word) == None and word not in self.ccWords:
         counts['ccCount'].add(index)
         scopeDict['cc'].add(index)
+        self.wordsConsidered['cc'][actualWord] += 1
+        considered = 1
       elif word.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", word) == None and word not in self.ckWords:
         counts['ckCount'].add(index)
+        self.wordsConsidered['ck'][actualWord] += 1
+        considered = 1
       if word.find("kc") >= 0 and word not in self.kcWords:
         counts['ccCount'].add(index)
         scopeDict['cc'].add(index)
+        considered = 1
+        self.wordsConsidered['cc'][actualWord] += 1
+      if considered == 0:
+        self.wordsNotConsideredLater[actualWord] += 1
+      else:
+        self.consideredWordsCount += 1
     
     #print scopeDict
     #print counts
@@ -588,10 +626,31 @@ class SubsitutionCoder:
       return str(round(count * 100.0 / scope, 2))
     return ""
     
+  def runScoring(self):
+    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered/"
+    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered.tsv", 'w', 1)
+    
+    for user in self.userWeekwisePosts.iterkeys():
+      for week in self.userWeekwisePosts[user].iterkeys():
+        for postIndex in self.userWeekwisePosts[user][week]:
+          self.scorePostWordIndexing(self.posts[postIndex][4])
+
+    for sub in self.wordsConsidered.iterkeys():
+      consFile = open(consDir + sub, 'w')
+      consFile.write('-------' * 2 + '\n')
+      consFile.write(sub + '\n')
+      consFile.write('-------' * 2 + '\n')
+      for word, count in self.wordsConsidered[sub].iteritems():
+        consFile.write(word + '\t' + str(count) + '\n')
+    consFile.close()
+    for word, count in self.wordsNotConsideredLater.iteritems():
+      notConsFile.write(word + '\t' + str(count) + '\n')
+    notConsFile.close()
+
 if __name__ == '__main__':
   data = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/FromChive/posts.csv"
   fakeAnnotation = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/Users_Pointed_Out_As_Fake.csv"
-  accuTimeline = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/accusationsFeatsTimeline.tsv"
+  accuTimeline = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/Fake/Annotation/accusationsFeatsTimelineAllUsers.tsv"
   F = SubsitutionCoder()
   F.loadData(data)
   F.createActiveForums()
@@ -601,9 +660,11 @@ if __name__ == '__main__':
   #F.sampleNonFakeUsers()
   F.betterSamplingNonFake()
   F.filterUsers()
-  F.makeAccusationsWeekwise()
+  ##F.makeAccusationsWeekwise()
   F.sanityCheck()
-  F.printPostingBehavior(accuTimeline)
+  ##F.printPostingBehavior(accuTimeline)
+  F.runScoring()
+  
   #while 1:
   #  post = raw_input("Text:")
   #  if post != "exit":
