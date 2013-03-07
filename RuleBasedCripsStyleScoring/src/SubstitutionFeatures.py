@@ -19,6 +19,7 @@ class SubsitutionCoder:
     self.pkWords = set(["napkin", "pumpkin", "pk", "upkeep"])
     self.kcWords = set(["kc", "backcast", "backcloth", "blackcock", "blackcurrant", "bookcase", "cockchafer", "dickcissel", "kekchi", "kinkcough",
                         "lockchester", "markcourt", "neckcloth", "packcloth", "sackcloth"])
+    self.bkWords = set(["bk", "abk", "ebk", "bks", "abks", "ebks", "bkz", "abkz", "ebkz"])
     self.addPlurals(self.pkWords)
     self.pkWords.add("pk's")
     self.ccWords = set()
@@ -26,6 +27,7 @@ class SubsitutionCoder:
     self.loadLexiconForCC()
     self.loadLexiconForCK()
     self.loadTwitterLexicon("")
+    self.addAAESuffEnds(self.twitterLexicon)
     self.addPlurals(self.twitterLexicon)
     self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood', 'bCaret', 'cCaret', 'pCaret', 'hCaret'])
     self.activeForums = {}
@@ -68,6 +70,18 @@ class SubsitutionCoder:
   def addPlurals(self, words):
     words2 = copy.deepcopy(words)
     for word in words2:
+      words.add(word + "s")
+      words.add(word + "z")
+      words.add(word + "'s")
+      words.add(word + "'z")
+  
+  def addAAESuffEnds(self, words):
+    words2 = copy.deepcopy(words)
+    for word in words2:
+      if word[-2:] == 'er':
+        words.add(word[:-2] + 'a')
+      if word[-3:] == 'ing':
+        words.add(word[:-1])
       words.add(word + "s")
       words.add(word + "z")
       words.add(word + "'s")
@@ -275,6 +289,7 @@ class SubsitutionCoder:
     word = word.replace("00", "oo")
     word = re.sub(r'([a-z])0([a-z])', r'\1o\2', word)
     word = re.sub("i+", "i", word)
+    word = re.sub(r"([\w])\1\1+", r'\1\1', word)
     return word
   
   def containsDigit(self, word):
@@ -283,12 +298,20 @@ class SubsitutionCoder:
         return False
       return True
   
+  def containsLetter(self, word):
+    for char in word:
+      if ord(char) >= 97 and ord(char) < 123:
+        return True
+    return False
+  
   def notInterested(self, word):
     try:
       dummy = int(word)
       return True
     except:
       pass
+    if len(word) >= 20:
+      return True
     if len(word) <= 1:
       return True
     try:
@@ -298,6 +321,16 @@ class SubsitutionCoder:
       pass
     if word.find("x") < 0 and word.find("ii") < 0 and word.find("^") < 0 and word.find("bk") < 0 and word.find("pk") < 0 \
     and word.find("hk") < 0 and word.find("cc") < 0 and word.find("ck") < 0 and not self.containsDigit(word):
+      return True
+    if word.find("=") >= 0:
+      return True
+    if word.find('@') >= 0 :
+      return True
+    if not self.containsLetter(word):
+      return True
+    if re.match(".*[0-9]{4}.*", word):
+      return True
+    if re.match("([0-9]+)?x([0-9]+)?('s)?$", word):
       return True
     return False
   
@@ -363,17 +396,17 @@ class SubsitutionCoder:
   
   def hoodDoubleSub(self, word, counts, wordIndex):
     prevWord = word
-    word = re.sub(r'gr[0-9][0-9]v([a-z]+)', r'groov\1', word)
-    word = re.sub(r'h[0-9][0-9]d([sz]*)', r'hood\1', word)
-    word = re.sub(r'h[0-9][0-9]v([a-z]+)', r'hoov\1', word)
-    word = re.sub(r'bl[0-9][0-9]d([sz]+?)', r'blood\1', word)
+    word = re.sub(r'gr[0-9][0-9][0-9]?v([a-z]+)', r'groov\1', word)
+    word = re.sub(r'h[0-9][0-9][0-9]?d([sz]*)', r'hood\1', word)
+    word = re.sub(r'h[0-9][0-9][0-9]?v([a-z]+)', r'hoov\1', word)
+    word = re.sub(r'bl[0-9][0-9][0-9]?d([sz]+?)', r'blood\1', word)
     if prevWord != word:
       counts['hoodCount'].add(wordIndex)
     return word
   
   def nwordDoubleSub(self, word, counts, wordIndex):
     prevWord = word
-    word = re.sub(r'ni[0-9][0-9]a([sz]?)', r'nigga\1', word)
+    word = re.sub(r'n[iu][0-9][0-9][0-9]?a([sz]?)', r'nigga\1', word)
     if prevWord != word:
       counts['nwordCount'].add(wordIndex)
     return word
@@ -427,7 +460,8 @@ class SubsitutionCoder:
       word = word.replace("cck", "ck")
       word = word.replace("ckk", "ck")
       # bk, pk, hk
-      if word.find("bk") >= 0:
+      
+      if word.find("bk") >= 0 and word not in self.bkWords:
         word = word.replace("bk", "b")
         counts['bkCount'].add(index)
         considered = 1
@@ -453,25 +487,25 @@ class SubsitutionCoder:
       word = self.hoodDoubleSub(word, counts, index)
       word = self.nwordDoubleSub(word, counts, index)
       ## Single Digits
-      if word.find("5") >= 0:
+      if re.match("(.*[a-z]5?5([^0-9].*)?|(.*[^0-9])?55?[a-z].*)$", word):
         word = word.replace('5', 's')
         scopeDict['5'].add(index)
         counts['5Count'].add(index)
         self.wordsConsidered['5s'][actualWord] += 1
         considered = 1
-      if word.find("3") >= 0:
+      if re.match("(.*[a-z]3?3([^0-9].*)?|(.*[^0-9])?33?[a-z].*)$", word):
         word = word.replace('3', 'e')
         counts['3Count'].add(index)
         scopeDict['3'].add(index)
         considered = 1
         self.wordsConsidered['3e'][actualWord] += 1
-      if word.find("6") >= 0:
+      if re.match("(.*[aeiou][rlm]?6?6([^0-9].*)?|(.*[^0-9])?66?[rl]?[aeiouy].*)$", word):
         word = word.replace('6', 'b') # g or b?
         counts['6Count'].add(index)
         scopeDict['6'].add(index)
         considered = 1
         self.wordsConsidered['6b'][actualWord] += 1
-      if word.find("8") >= 0:
+      if re.match("(.*[aeiou][rlm]?8?8([^0-9].*)?|(.*[^0-9])?88?[rl]?[aeiouy].*)$", word):
         word = word.replace('8', 'b')
         scopeDict['8'].add(index)
         counts['8Count'].add(index)
@@ -499,7 +533,7 @@ class SubsitutionCoder:
         scopeDict['cc'].add(index)
         self.wordsConsidered['cc'][actualWord] += 1
         considered = 1
-      elif word.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", word) == None and word not in self.ckWords:
+      elif self.isCK(word):
         counts['ckCount'].add(index)
         self.wordsConsidered['ck'][actualWord] += 1
         considered = 1
@@ -521,6 +555,20 @@ class SubsitutionCoder:
     #print "Complexity Global Feat:", self.globalScoreComplexity(counts, scopeDict)
     #print "Simple Global Feat:", self.globalScoreSimple(counts, scopeDict)
     return counts, scopeDict
+  
+  def isCK(self, word):
+    if word.find("ck") < 0:
+      return False
+    ckIndex = word.index("ck")
+    firstWord = word[:ckIndex + 2]
+    secondWord = word[ckIndex + 2:]
+    if re.match("n[ui]cka+[sz]?", word) or word in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
+      return False
+    if firstWord not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
+      return True
+    if secondWord.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", secondWord) == None and word not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
+      return True
+    return False
 
   def scorePost(self, post):
     caretCount = 0
@@ -627,8 +675,8 @@ class SubsitutionCoder:
     return ""
     
   def runScoring(self):
-    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered/"
-    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered.tsv", 'w', 1)
+    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered2/"
+    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered2.tsv", 'w', 1)
     
     for user in self.userWeekwisePosts.iterkeys():
       for week in self.userWeekwisePosts[user].iterkeys():
@@ -636,10 +684,7 @@ class SubsitutionCoder:
           self.scorePostWordIndexing(self.posts[postIndex][4])
 
     for sub in self.wordsConsidered.iterkeys():
-      consFile = open(consDir + sub, 'w')
-      consFile.write('-------' * 2 + '\n')
-      consFile.write(sub + '\n')
-      consFile.write('-------' * 2 + '\n')
+      consFile = open(consDir + sub + ".txt", 'w')
       for word, count in self.wordsConsidered[sub].iteritems():
         consFile.write(word + '\t' + str(count) + '\n')
     consFile.close()
