@@ -102,7 +102,11 @@ class SubsitutionCoder:
       #self.twitterLexicon[line[0]] = int(line[1])
   
   def filterTwitterLexicon(self):
-    dummy = 1
+    for word in self.twitterLexicon:
+      if word.find("-")>0:
+        dashSplit = word.split('-')
+        for part in dashSplit:
+          self.twitterLexicon.add(part)
   
   def sampleNonFakeUsers(self):
     count = 0
@@ -447,7 +451,18 @@ class SubsitutionCoder:
   def scorePostWordIndexing(self, post):
     counts = dd(set)
     scopeDict = dd(set)
-    for index in range(len(post.split())):
+    #split apart dashed words
+    postWords = post.split()
+    for word in postWords:
+      if word.find('-') > 0:
+        wordParts = word.split('-')
+        for index in range(len(wordParts)):
+          if index == 0:
+            word = wordParts[0]
+          else:
+            postWords.add(wordParts[index])
+    #score the words
+    for index in range(len(postWords)):
       word = post.split()[index]
       actualWord = word
       self.updateScope(word, scopeDict, index) ## Updating the scope before skipping the words
@@ -570,11 +585,12 @@ class SubsitutionCoder:
     firstWord = word[:ckIndex + 2]
     secondWord = word[ckIndex + 2:]
     
-    if re.match("n[ui]cka+[sz]?", word) or word in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
+    if re.match("n[uix]cka+[sz]?", word) or word in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
       return False
-    if firstWord not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
-      return True
-    if secondWord.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", secondWord) == None and word not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
+    if firstWord in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", firstWord) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", firstWord):
+      if secondWord.find("ck") == 0:
+        return False
+    if secondWord.find("ck") >= 0 and re.match("n[uix]cka+[sz]?", secondWord) == None and word not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", secondWord) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", secondWord):
       return True
     #return False
     return True
@@ -646,10 +662,10 @@ class SubsitutionCoder:
       if word.find("cck") >= 0:
         scopeDict['cc'] += 1
         pass
-      elif word.find("cc") >= 0 and re.match("n[ui]cca+[sz]?", word) == None and word not in self.ccWords:
+      elif word.find("cc") >= 0 and re.match("n[uix]cca+[sz]?", word) == None and word not in self.ccWords:
         counts['ccCount'] += 1
         scopeDict['cc'] += 1
-      elif word.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", word) == None and word not in self.ckWords:
+      elif word.find("ck") >= 0 and re.match("n[uix]cka+[sz]?", word) == None and word not in self.ckWords:
         counts['ckCount'] += 1
       if word.find("kc") >= 0 and word not in self.kcWords:
         counts['ccCount'] += 1
