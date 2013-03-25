@@ -79,7 +79,7 @@ class SubsitutionCoder:
   def addXtreme(self, words):
     words2 = copy.deepcopy(words)
     for word in words2:
-      if re.match("ex*"):
+      if re.match("ex", word):
         words.add(word[1:])
   
   def addAAESuffEnds(self, words):
