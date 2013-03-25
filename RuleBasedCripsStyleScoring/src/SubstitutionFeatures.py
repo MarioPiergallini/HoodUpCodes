@@ -525,7 +525,7 @@ class SubsitutionCoder:
       # cc, ck and kc
       if word.find("ckk") >= 0:
         scopeDict['cc'].add(index)
-      if word.find("cck") >= 0:
+      if word.find("cck") >= 0: ## Why linked with cc
         scopeDict['cc'].add(index)
         pass
       elif word.find("cc") >= 0 and re.match("n[ui]cca+[sz]?", word) == None and word not in self.ccWords:
@@ -562,13 +562,15 @@ class SubsitutionCoder:
     ckIndex = word.index("ck")
     firstWord = word[:ckIndex + 2]
     secondWord = word[ckIndex + 2:]
+    
     if re.match("n[ui]cka+[sz]?", word) or word in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
       return False
     if firstWord not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
       return True
     if secondWord.find("ck") >= 0 and re.match("n[ui]cka+[sz]?", secondWord) == None and word not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
       return True
-    return False
+    #return False
+    return True
 
   def scorePost(self, post):
     caretCount = 0
@@ -675,13 +677,18 @@ class SubsitutionCoder:
     return ""
     
   def runScoring(self):
-    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered2/"
-    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered2.tsv", 'w', 1)
-    
+    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered3/"
+    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered3.tsv", 'w', 1)
+    count = 0
     for user in self.userWeekwisePosts.iterkeys():
       for week in self.userWeekwisePosts[user].iterkeys():
         for postIndex in self.userWeekwisePosts[user][week]:
           self.scorePostWordIndexing(self.posts[postIndex][4])
+          count += 1
+          try:
+            dummy = 1/(count%10000)
+          except:
+            print count
 
     for sub in self.wordsConsidered.iterkeys():
       consFile = open(consDir + sub + ".txt", 'w')
