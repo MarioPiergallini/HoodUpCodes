@@ -28,6 +28,7 @@ class SubsitutionCoder:
     self.loadLexiconForCK()
     self.loadTwitterLexicon("")
     self.addAAESuffEnds(self.twitterLexicon)
+    self.addXtreme(self.twitterLexicon)
     self.addPlurals(self.twitterLexicon)
     self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood', 'bCaret', 'cCaret', 'pCaret', 'hCaret'])
     self.activeForums = {}
@@ -74,6 +75,12 @@ class SubsitutionCoder:
       words.add(word + "z")
       words.add(word + "'s")
       words.add(word + "'z")
+  
+  def addXtreme(self, words):
+    words2 = copy.deepcopy(words)
+    for word in words2:
+      if re.match("ex*"):
+        words.add(word[1:])
   
   def addAAESuffEnds(self, words):
     words2 = copy.deepcopy(words)
@@ -370,10 +377,10 @@ class SubsitutionCoder:
     xIndices = []
     listWord = []
     xFlag = 0
-    if word.find('xx') >= 0:
-      word = word.replace('xx', 'oo')
-      counts['xCount'].add(wordIndex)
-      xFlag = 1
+#    if word.find('xx') >= 0:
+#      word = word.replace('xx', 'oo')
+#      counts['xCount'].add(wordIndex)
+#      xFlag = 1
     for index in range(len(word)):
       char = word[index]
       listWord.append(char)
