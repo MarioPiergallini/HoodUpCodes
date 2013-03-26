@@ -702,8 +702,8 @@ class SubsitutionCoder:
     return ""
     
   def runScoring(self):
-    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered3/"
-    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered3.tsv", 'w', 1)
+    consDir = "/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/considered4/"
+    notConsFile = open("/usr0/home/pgadde/Work/Ethnic/Hoodup/RuleBasedScoring/wordsNotConsidered4.tsv", 'w', 1)
     count = 0
     for user in self.userWeekwisePosts.iterkeys():
       for week in self.userWeekwisePosts[user].iterkeys():
