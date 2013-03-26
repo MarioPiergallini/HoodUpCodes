@@ -102,8 +102,9 @@ class SubsitutionCoder:
       #self.twitterLexicon[line[0]] = int(line[1])
   
   def filterTwitterLexicon(self):
-    for word in self.twitterLexicon:
-      if word.find("-")>0:
+    words = copy.deepcopy(self.twitterLexicon)
+    for word in words:
+      if word.find("-") > 0:
         dashSplit = word.split('-')
         for part in dashSplit:
           self.twitterLexicon.add(part)
@@ -378,13 +379,20 @@ class SubsitutionCoder:
       scopeDict['ck'].add(wordIndex)
   
   def xSub(self, word, counts, scopeDict, wordIndex):
+    
+    if word.find('-') >= 0:
+      splitWord = word.split('-') 
+      w1xSub, w1xFlag = self.xSub(splitWord[0], counts, scopeDict, wordIndex)
+      w2xSub, w2xFlag = self.xSub(splitWord[1], counts, scopeDict, wordIndex)
+      return w1xSub + '-' + w2xSub, w1xFlag | w2xFlag 
+    
     xIndices = []
     listWord = []
     xFlag = 0
-#    if word.find('xx') >= 0:
-#      word = word.replace('xx', 'oo')
-#      counts['xCount'].add(wordIndex)
-#      xFlag = 1
+    if word.find('xx') >= 0:
+      word = word.replace('xx', 'oo')
+      counts['xCount'].add(wordIndex)
+      xFlag = 1
     for index in range(len(word)):
       char = word[index]
       listWord.append(char)
@@ -402,8 +410,7 @@ class SubsitutionCoder:
       counts['xCount'].add(wordIndex)
       scopeDict['x'].add(wordIndex)
     word = ''.join(listWord)
-    
-    return word
+    return word, xFlag
   
   def hoodDoubleSub(self, word, counts, wordIndex):
     prevWord = word
@@ -451,18 +458,8 @@ class SubsitutionCoder:
   def scorePostWordIndexing(self, post):
     counts = dd(set)
     scopeDict = dd(set)
-    #split apart dashed words
-    postWords = post.split()
-    for word in postWords:
-      if word.find('-') > 0:
-        wordParts = word.split('-')
-        for index in range(len(wordParts)):
-          if index == 0:
-            word = wordParts[0]
-          else:
-            postWords.add(wordParts[index])
     #score the words
-    for index in range(len(postWords)):
+    for index in range(len(post.split())):
       word = post.split()[index]
       actualWord = word
       self.updateScope(word, scopeDict, index) ## Updating the scope before skipping the words
@@ -535,9 +532,10 @@ class SubsitutionCoder:
         self.wordsConsidered['8b'][actualWord] += 1
       # x!
       if word.find('x') >= 0:
-        word = self.xSub(word, counts, scopeDict, index)
-        self.wordsConsidered['x'][actualWord] += 1
-        considered = 1
+        word, xFlag = self.xSub(word, counts, scopeDict, index)
+        if xFlag:
+          self.wordsConsidered['x'][actualWord] += 1
+          considered = 1
       #print "word after subsitutions:", word
       # Updating cc scope again!
       self.updateCCScope(word, scopeDict, index)
@@ -579,6 +577,10 @@ class SubsitutionCoder:
     return counts, scopeDict
   
   def isCK(self, word):
+    if word.find("-") >= 0:
+      splitWord = word.split('-')
+      return self.isCK(splitWord[0]) | self.isCK(splitWord[1])
+    
     if word.find("ck") < 0:
       return False
     ckIndex = word.index("ck")
@@ -709,7 +711,7 @@ class SubsitutionCoder:
           self.scorePostWordIndexing(self.posts[postIndex][4])
           count += 1
           try:
-            dummy = 1/(count%10000)
+            dummy = 1 / (count % 10000)
           except:
             print count
 
