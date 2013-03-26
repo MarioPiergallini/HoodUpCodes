@@ -380,6 +380,9 @@ class SubsitutionCoder:
   
   def xSub(self, word, counts, scopeDict, wordIndex):
     
+    if word in self.twitterLexicon:
+      return word, 0
+    
     if word.find('-') >= 0:
       splitWord = word.split('-') 
       w1xSub, w1xFlag = self.xSub(splitWord[0], counts, scopeDict, wordIndex)
@@ -577,6 +580,7 @@ class SubsitutionCoder:
     return counts, scopeDict
   
   def isCK(self, word):
+    
     if word.find("-") >= 0:
       splitWord = word.split('-')
       return self.isCK(splitWord[0]) | self.isCK(splitWord[1])
@@ -589,11 +593,14 @@ class SubsitutionCoder:
     
     if re.match("n[uix]cka+[sz]?", word) or word in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
       return False
+    
     if firstWord in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", firstWord) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", firstWord):
-      if secondWord.find("ck") == 0:
+      if secondWord.find("ck") < 0:
         return False
+    
     if secondWord.find("ck") >= 0 and re.match("n[uix]cka+[sz]?", secondWord) == None and word not in self.ckWords and not re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", secondWord) and not re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", secondWord):
       return True
+    
     #return False
     return True
 
@@ -723,6 +730,14 @@ class SubsitutionCoder:
     for word, count in self.wordsNotConsideredLater.iteritems():
       notConsFile.write(word + '\t' + str(count) + '\n')
     notConsFile.close()
+  
+  def takeQueries(self):
+    while 1:
+      word = raw_input("Enter a word:")
+      if word == 'exit':
+        break
+      print "CK func return value:", self.isCK(word)
+      print "xSub func return value:", self.xSub(word, dd(set), dd(set), 0)
 
 if __name__ == '__main__':
   data = "/usr0/home/pgadde/Work/Ethnic/Hoodup/Data/Nov2012/FromChive/posts.csv"
@@ -740,6 +755,7 @@ if __name__ == '__main__':
   ##F.makeAccusationsWeekwise()
   F.sanityCheck()
   ##F.printPostingBehavior(accuTimeline)
+  #F.takeQueries()
   F.runScoring()
   
   #while 1:
