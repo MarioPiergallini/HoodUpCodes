@@ -593,8 +593,8 @@ class SubsitutionCoder:
     
     if re.match("n[uix]cka+[sz]?", word) or word in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", word) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", word):
       return False
-    
-    if firstWord in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", firstWord) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", firstWord):
+     
+    if len(firstWord)>=4 and ( firstWord in self.ckWords or re.match("m[oua][ftherauodzv]{0,4}f[aiou][ckg]+([aenoiusr][a-z]*)?", firstWord) or re.match("f[eiou\*]{0,1}[ckg]*ck[ckg]*([aenoius][a-z]*)?", firstWord)):
       if secondWord.find("ck") < 0:
         return False
     
