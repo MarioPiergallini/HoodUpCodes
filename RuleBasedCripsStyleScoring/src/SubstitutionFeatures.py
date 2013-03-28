@@ -30,7 +30,7 @@ class SubsitutionCoder:
     self.addAAESuffEnds(self.twitterLexicon)
     self.addXtreme(self.twitterLexicon)
     self.addPlurals(self.twitterLexicon)
-    self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "8", "x", 'nword', 'hood', 'bCaret', 'cCaret', 'pCaret', 'hCaret'])
+    self.features = set(["cc", "ck", "bk", "pk", "hk", "oe", "3", "5", "6", "x", 'nword', 'hood', 'bCaret', 'cCaret', 'pCaret', 'hCaret'])
     self.activeForums = {}
     
     self.wordsNotConsideredLater = dd(int)
@@ -364,8 +364,9 @@ class SubsitutionCoder:
       scopeDict['6'].add(wordIndex)
     if word.find("s") >= 0:
       scopeDict['5'].add(wordIndex)
-    if word.find("b") >= 0:
-      scopeDict['8'].add(wordIndex)
+    ### Not counting 8 feature ###
+    #if word.find("b") >= 0:
+    #  scopeDict['8'].add(wordIndex)
     if word.find("o") >= 0:
       scopeDict['x'].add(wordIndex)
       scopeDict['oe'].add(wordIndex)
@@ -423,6 +424,7 @@ class SubsitutionCoder:
     word = re.sub(r'bl[0-9][0-9][0-9]?d([sz]+?)', r'blood\1', word)
     if prevWord != word:
       counts['hoodCount'].add(wordIndex)
+      self.wordsConsidered['hood'][prevWord] += 1
     return word
   
   def nwordDoubleSub(self, word, counts, wordIndex):
@@ -430,6 +432,7 @@ class SubsitutionCoder:
     word = re.sub(r'n[iu][0-9][0-9][0-9]?a([sz]?)', r'nigga\1', word)
     if prevWord != word:
       counts['nwordCount'].add(wordIndex)
+      self.wordsConsidered['nword'][prevWord] += 1
     return word
   
   def updateHoodScope(self, word, scopeDict, wordIndex):
@@ -525,14 +528,23 @@ class SubsitutionCoder:
         word = word.replace('6', 'b') # g or b?
         counts['6Count'].add(index)
         scopeDict['6'].add(index)
+        scopeDict['bCaret'].add(index)
+        scopeDict['bk'].add(index)
+        ##scopeDict['8'].add(index)
         considered = 1
         self.wordsConsidered['6b'][actualWord] += 1
-      if re.match("(.*[aeiou][rlm]?8?8([^0-9].*)?|(.*[^0-9])?88?[rl]?[aeiouy].*)$", word):
+      
+      ### Not counting 8 feature ###  
+      '''if re.match("(.*[aeiou][rlm]?8?8([^0-9].*)?|(.*[^0-9])?88?[rl]?[aeiouy].*)$", word):
         word = word.replace('8', 'b')
         scopeDict['8'].add(index)
+        scopeDict['bCaret'].add(index)
+        scopeDict['bk'].add(index)
+        scopeDict['6'].add(index)
         counts['8Count'].add(index)
         considered = 1
-        self.wordsConsidered['8b'][actualWord] += 1
+        self.wordsConsidered['8b'][actualWord] += 1'''
+        
       # x!
       if word.find('x') >= 0:
         word, xFlag = self.xSub(word, counts, scopeDict, index)
