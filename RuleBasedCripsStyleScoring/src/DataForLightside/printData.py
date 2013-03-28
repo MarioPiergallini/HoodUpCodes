@@ -1,7 +1,6 @@
 from DataReader import DataReader
 from Features import RuleBasedFeatures
 from collections import defaultdict as dd
-import sys
 
 class Printer:
   def __init__(self):
